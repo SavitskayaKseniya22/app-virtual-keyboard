@@ -1,8 +1,6 @@
 .keyboard-container {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  width: min(100%, 100rem);
+  margin: 0 auto;
 }
 
 .textarea-container {
@@ -13,7 +11,8 @@
 }
 
 .keyboard-textarea {
-  width: auto;
+  width: 100%;
+  min-width: 0;
   font-family: monospace;
   height: 10rem;
   border: none;
@@ -37,9 +36,11 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 0.5rem;
+  overflow-x: auto;
 }
 
 .keyboard-row {
+  min-width: 90rem;
   flex: 1;
   background-color: rgb(222, 215, 230);
   border-radius: 0.5rem;
@@ -51,9 +52,8 @@
 }
 
 .keyboard-addition {
-  position: absolute;
-  right: 3rem;
-  bottom: 1rem;
+  width: min(100%, 100rem);
+  margin: 1rem auto 0;
   font-size: 1.5rem;
   color: rgba(0, 0, 0, 0.697);
   text-align: right;

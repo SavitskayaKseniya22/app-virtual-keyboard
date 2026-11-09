@@ -37,7 +37,6 @@ npm install
 npm start
 ```
 
-For a production build, run `npm run build`. To serve the build locally, run `npm run preview`.
 
 ### Screenshots
 

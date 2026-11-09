@@ -1,276 +1,219 @@
-import Key from "../key/Key.js";
+﻿import Key from "../key/Key.js";
 import layout from "./layout.js";
 
 export default class Keyboard {
   constructor() {
-    const savedLang = window.localStorage.getItem("lang");
+    let savedLang;
+    try {
+      savedLang = window.localStorage.getItem("lang");
+    } catch {
+      // The keyboard remains usable when browser storage is unavailable.
+    }
     this.lang = savedLang === "RU" ? "RU" : "ENG";
     this.keyCodes = layout.codes;
     this.keyDescriptions = layout.merge(this.lang);
-    this.isShiftActive = false;
+    this.virtualShift = false;
+    this.physicalShifts = new Set();
     this.isCapsActive = false;
-    this.physicalShiftDown = false;
   }
 
-  makeKey(element, object) {
-    const key = new Key(element, object);
-    this.keyContent = key.makeKeyHTML();
-    return this.keyContent;
+  get isShiftActive() {
+    return this.virtualShift || this.physicalShifts.size > 0;
   }
 
-  makeKeyArray(array, object) {
-    this.keyboardContent = [];
-    array.forEach((element) => {
-      this.keyboardContent.push(this.makeKey(element, object));
-    });
-
-    return this.keyboardContent.join("");
+  makeKeyArray(codes) {
+    return codes.map((code) => new Key(code, this.keyDescriptions).makeKeyHTML()).join("");
   }
 
   makeKeyboardHTML() {
     return `
-    <div class="keyboard-container">
-    <div class="textarea-container">
-    <textarea id="text" name="text" class="keyboard-textarea" placeholder="Type something..." aria-label="Text input" cols="60"></textarea>
-    </div>
-    
+    <main class="keyboard-container">
+      <div class="textarea-container">
+        <textarea id="text" name="text" class="keyboard-textarea" placeholder="Type something..." aria-label="Text input" cols="60"></textarea>
+      </div>
       <ul class="keyboard">
-        <li class="keyboard-row">
-        ${this.makeKeyArray(this.keyCodes.slice(0, 14), this.keyDescriptions)}</li>
-        <li class="keyboard-row">
-        ${this.makeKeyArray(this.keyCodes.slice(14, 29).reverse(), this.keyDescriptions)}</li>
-        <li class="keyboard-row">
-        ${this.makeKeyArray(this.keyCodes.slice(29, 42), this.keyDescriptions)}</li>
-        <li class="keyboard-row">
-        ${this.makeKeyArray(this.keyCodes.slice(42, 54).reverse(), this.keyDescriptions)}</li>
-        <li class="keyboard-row">
-        ${this.makeKeyArray(this.keyCodes.slice(54, this.keyCodes.length), this.keyDescriptions)}</li>
+        <li class="keyboard-row">${this.makeKeyArray(this.keyCodes.slice(0, 14))}</li>
+        <li class="keyboard-row">${this.makeKeyArray(this.keyCodes.slice(14, 29).reverse())}</li>
+        <li class="keyboard-row">${this.makeKeyArray(this.keyCodes.slice(29, 42))}</li>
+        <li class="keyboard-row">${this.makeKeyArray(this.keyCodes.slice(42, 54).reverse())}</li>
+        <li class="keyboard-row">${this.makeKeyArray(this.keyCodes.slice(54))}</li>
       </ul>
-    </div>
+    </main>
     <p class="keyboard-addition">
-   <b><span class="keyboard-addition__lang">${this.lang}</span></b>
-    <br> Press Shift and then Ctrl to change language</p>`;
+      <b><span class="keyboard-addition__lang" aria-live="polite">${this.lang}</span></b>
+      <br>Press Ctrl + Shift to change language. On screen: Shift, then Ctrl.
+    </p>`;
   }
 
-  applySpecialBehaviour(keyName, code) {
-    Keyboard.toggleSpecialButton(keyName);
-    this.makeSpecialAction(keyName, code);
-  }
+  updateLayout() {
+    const descriptions = layout.merge(this.lang);
+    for (const [code, description] of Object.entries(descriptions)) {
+      const base = description.activeValue;
+      if (/^[a-zа-яё]$/i.test(base)) {
+        description.activeValue = this.isShiftActive !== this.isCapsActive ? base.toUpperCase() : base;
+      } else if (this.isShiftActive && description.addition) {
+        description.activeValue = description.addition;
+      }
 
-  makeSpecialAction(keyName, code) {
-    if (keyName === "Shift") {
-      this.isShiftActive = !this.isShiftActive;
-      this.updateDigitsKeyboardLayout();
-      this.updateCaseKeyboardLayout(this.isShiftActive !== this.isCapsActive);
-    } else if (keyName === "CapsLock") {
-      this.isCapsActive = !this.isCapsActive;
-      this.updateCaseKeyboardLayout(this.isShiftActive !== this.isCapsActive);
-    } else if (keyName === "Control" && this.isShiftActive) {
-      this.applySpecialBehaviour("Shift", code);
-      this.switchLang();
-      this.updateCaseKeyboardLayout(this.isShiftActive !== this.isCapsActive);
-    } else {
-      this.changeTextarea(keyName, code);
+      const node = document.querySelector(`[data-code="${code}"]`);
+      if (!node) continue;
+      node.className = Key.makeClassList(base);
+      node.querySelector(".key-main-value").textContent = description.shortcut || description.activeValue;
+      node.setAttribute("aria-label", description.activeValue);
+      const addition = node.querySelector(".key-addition-value");
+      if (addition) addition.remove();
+      if (description.addition) {
+        const hint = document.createElement("span");
+        hint.className = "key-addition-value";
+        hint.textContent = this.isShiftActive ? base : description.addition;
+        node.append(hint);
+      }
+      if (base === "Shift" || base === "CapsLock") {
+        const active = base === "Shift" ? this.isShiftActive : this.isCapsActive;
+        node.classList.toggle("active", active);
+        node.setAttribute("aria-pressed", String(active));
+      }
     }
-    return keyName;
-  }
-
-  static toggleSpecialButton(keyName) {
-    const keys = document.querySelectorAll(`.key_${keyName.toLowerCase()}`);
-    keys.forEach((element) => {
-      element.classList.toggle("active");
-
-      if (keyName === "Shift" || keyName === "CapsLock") {
-        return;
-      }
-
-      setTimeout(() => {
-        element.classList.toggle("active");
-      }, 300);
-    });
-  }
-
-  updateCaseKeyboardLayout(triggerCase) {
-    const letters = document.querySelectorAll(".key_letters");
-    letters.forEach((elem) => {
-      const code = elem.getAttribute("data-code");
-      const { activeValue } = this.keyDescriptions[code];
-      const changedValue = triggerCase ? activeValue.toUpperCase() : activeValue.toLowerCase();
-      const elemToChange = elem.querySelector(".key-main-value");
-      elemToChange.innerText = changedValue;
-      this.keyDescriptions[code].activeValue = changedValue;
-    });
-  }
-
-  updateDigitsKeyboardLayout() {
-    const digits = document.querySelectorAll(".key_digits");
-    digits.forEach((elem) => {
-      const code = elem.getAttribute("data-code");
-      if (!(code === "Backquote" && this.lang === "RU")) {
-        const mainElemToChange = elem.querySelector(".key-main-value");
-        const addElemToChange = elem.querySelector(".key-addition-value");
-        const { addition, activeValue, ru, eng } = this.keyDescriptions[code];
-
-        if (addition !== activeValue) {
-          this.keyDescriptions[code].activeValue = addition;
-        } else {
-          this.keyDescriptions[code].activeValue = this.lang === "RU" ? ru : eng;
-        }
-
-        mainElemToChange.innerText = this.keyDescriptions[code].activeValue;
-        addElemToChange.innerText = activeValue;
-      }
-    });
-  }
-
-  updateLangKeyboardLayout() {
-    const letters = document.querySelectorAll(".key_letters");
-    letters.forEach((elem) => {
-      const code = elem.getAttribute("data-code");
-      const elemToChange = elem.querySelector(".key-main-value");
-      const changedValue = this.lang === "ENG" ? this.keyDescriptions[code].ru : this.keyDescriptions[code].eng;
-      elemToChange.innerText = changedValue;
-      this.keyDescriptions[code].activeValue = changedValue;
-    });
+    this.keyDescriptions = descriptions;
   }
 
   switchLang() {
-    this.updateLangKeyboardLayout();
     this.lang = this.lang === "ENG" ? "RU" : "ENG";
-    Keyboard.saveLang(this.lang);
-  }
-
-  static saveLang(langValue) {
-    window.localStorage.setItem("lang", langValue);
-    document.querySelector(".keyboard-addition__lang").innerText = langValue;
+    try {
+      window.localStorage.setItem("lang", this.lang);
+    } catch {
+      // Language switching does not depend on persistence.
+    }
+    document.querySelector(".keyboard-addition__lang").textContent = this.lang;
+    this.updateLayout();
   }
 
   static toggleKeyAnimation(node) {
     node.classList.add("pressed");
-
-    setTimeout(() => {
-      node.classList.remove("pressed");
-    }, 300);
-  }
-
-  checkValueToConcat(keyName, code) {
-    const { value, activeValue } = this.keyDescriptions[code];
-    return value !== undefined ? value : activeValue;
+    setTimeout(() => node.classList.remove("pressed"), 300);
   }
 
   static checkPositionToConcat(keyName, textArea) {
-    let [start, end] = [textArea.selectionStart, textArea.selectionEnd];
-    const textLength = textArea.value.length;
-    const upValue =
-      textArea.selectionEnd - Number(textArea.getAttribute("cols")) < 0
-        ? 0
-        : textArea.selectionEnd - Number(textArea.getAttribute("cols"));
-    const positions = {
-      Delete: [start, start === end ? Math.min(end + 1, textLength) : end],
-      Backspace: [start === end ? Math.max(start - 1, 0) : start, end],
-      ArrowLeft: [start === end ? Math.max(start - 1, 0) : start, start === end ? Math.max(end - 1, 0) : start],
-      ArrowUp: [upValue, upValue],
-      ArrowDown: [
-        Math.min(Number(textArea.getAttribute("cols")) + end, textLength),
-        Math.min(Number(textArea.getAttribute("cols")) + end, textLength),
-      ],
-      ArrowRight: [start === end ? Math.min(start + 1, textLength) : end, start === end ? Math.min(end + 1, textLength) : end],
-    };
-
-    if (positions[keyName]) {
-      if (
-        (keyName === "Backspace" || keyName === "ArrowLeft" || keyName === "ArrowUp") &&
-        start === 0 && end === 0
-      ) {
-        return [start, end];
+    const { selectionStart: start, selectionEnd: end, value } = textArea;
+    const length = value.length;
+    switch (keyName) {
+      case "Delete":
+        return [start, start === end ? Math.min(end + 1, length) : end];
+      case "Backspace":
+        return [start === end ? Math.max(start - 1, 0) : start, end];
+      case "ArrowLeft": {
+        const position = start === end ? Math.max(start - 1, 0) : start;
+        return [position, position];
       }
-      [start, end] = positions[keyName];
+      case "ArrowRight": {
+        const position = start === end ? Math.min(end + 1, length) : end;
+        return [position, position];
+      }
+      case "ArrowUp":
+      case "ArrowDown": {
+        const position = keyName === "ArrowUp" ? start : end;
+        const lineStart = value.slice(0, position).lastIndexOf("\n") + 1;
+        const column = position - lineStart;
+        const lineEnd = value.indexOf("\n", position);
+        let nextPosition;
+        if (keyName === "ArrowUp") {
+          const previousStart = value.slice(0, Math.max(lineStart - 1, 0)).lastIndexOf("\n") + 1;
+          nextPosition = lineStart > 0 ? previousStart + Math.min(column, lineStart - previousStart - 1) : 0;
+        } else {
+          const nextStart = lineEnd < 0 ? length : lineEnd + 1;
+          const nextEnd = value.indexOf("\n", nextStart);
+          nextPosition = nextStart + Math.min(column, (nextEnd < 0 ? length : nextEnd) - nextStart);
+        }
+        return [nextPosition, nextPosition];
+      }
+      default:
+        return [start, end];
     }
-
-    return [start, end];
   }
 
   changeTextarea(keyName, code) {
+    if (keyName === "Control" || keyName === "Alt") return;
     const textArea = document.getElementById("text");
     textArea.focus();
-    const valueToConcat = this.checkValueToConcat(keyName, code);
     const [start, end] = Keyboard.checkPositionToConcat(keyName, textArea);
-    textArea.setRangeText(valueToConcat, start, end, "end");
+    if (keyName.startsWith("Arrow")) {
+      textArea.setSelectionRange(start, end);
+      return;
+    }
+    const description = this.keyDescriptions[code];
+    textArea.setRangeText(description.value ?? description.activeValue, start, end, "end");
+    textArea.dispatchEvent(new Event("input", { bubbles: true }));
     textArea.scrollTop = textArea.scrollHeight;
+  }
+
+  activateKey(code) {
+    const key = this.keyDescriptions[code].activeValue;
+    if (key === "Shift") {
+      this.virtualShift = !this.virtualShift;
+      this.updateLayout();
+    } else if (key === "CapsLock") {
+      this.isCapsActive = !this.isCapsActive;
+      this.updateLayout();
+    } else if (key === "Control" && this.isShiftActive) {
+      this.virtualShift = false;
+      this.switchLang();
+    } else {
+      this.changeTextarea(key, code);
+      if (key.length === 1 && this.virtualShift) {
+        this.virtualShift = false;
+        this.updateLayout();
+      }
+    }
+    Keyboard.toggleKeyAnimation(document.querySelector(`[data-code="${code}"]`));
   }
 
   addListener() {
     document.addEventListener("keydown", (event) => {
-      if (!this.keyDescriptions[event.code]) {
-        return;
-      }
+      if (event.isComposing || !this.keyDescriptions[event.code]) return;
+      if (event.code === "Tab") return;
 
-      // Keep Tab available for keyboard navigation; the on-screen Tab key still inserts a tab.
-      if (event.code === "Tab") {
-        return;
+      const isShift = event.code.startsWith("Shift");
+      const isControl = event.code.startsWith("Control");
+      if (isShift) {
+        this.physicalShifts.add(event.code);
+        this.updateLayout();
       }
-
-      if (event.code.startsWith("Control") && event.shiftKey && this.isShiftActive) {
+      if ((isShift && event.ctrlKey) || (isControl && event.shiftKey)) {
         event.preventDefault();
-        this.applySpecialBehaviour("Control", event.code);
+        if (!event.repeat) this.switchLang();
+        return;
+      }
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isShift) {
+        event.preventDefault();
         return;
       }
 
-      // Keep browser and operating system shortcuts such as copy and paste available.
-      if (event.ctrlKey || event.metaKey) {
-        return;
-      }
-
-      const key = this.keyDescriptions[event.code].activeValue;
-      const target = document.querySelector(`[data-code="${event.code}"]`);
-      if (!target) {
-        return;
-      }
-
-      if (event.repeat && (key === "Shift" || key === "CapsLock")) {
-        return;
-      }
-
+      // Let the browser handle button activation and native caret navigation.
+      if (event.target.closest?.(".key") && (event.code === "Enter" || event.code === "Space")) return;
+      if (event.target.id === "text" && event.code.startsWith("Arrow")) return;
+      if (event.repeat && event.code === "CapsLock") return;
       event.preventDefault();
-      if (key === "Shift") {
-        this.physicalShiftDown = true;
-      }
-      if (target.classList.contains("key_special")) {
-        this.applySpecialBehaviour(key, event.code);
-      } else {
-        this.changeTextarea(key, event.code);
-        if (this.isShiftActive) {
-          this.applySpecialBehaviour("Shift", event.code);
-        }
-      }
-
-      Keyboard.toggleKeyAnimation(target);
+      this.activateKey(event.code);
     });
 
     document.addEventListener("keyup", (event) => {
-      if (event.code.startsWith("Shift") && this.physicalShiftDown) {
-        this.physicalShiftDown = false;
-        if (this.isShiftActive) {
-          this.applySpecialBehaviour("Shift", event.code);
-        }
-      }
+      if (this.physicalShifts.delete(event.code)) this.updateLayout();
+    });
+
+    window.addEventListener("blur", () => {
+      this.physicalShifts.clear();
+      this.updateLayout();
+    });
+
+    // Keep the caret and selection when clicking a virtual key.
+    document.addEventListener("mousedown", (event) => {
+      if (event.button === 0 && event.target.closest(".key")) event.preventDefault();
     });
 
     document.addEventListener("click", (event) => {
       const target = event.target.closest(".key");
-      if (target) {
-        const code = target.getAttribute("data-code");
-        const key = this.keyDescriptions[code].activeValue;
-        if (target.classList.contains("key_special")) {
-          this.applySpecialBehaviour(key, code);
-        } else {
-          this.changeTextarea(key, code);
-          if (this.isShiftActive) {
-            this.applySpecialBehaviour("Shift", code);
-          }
-        }
-        Keyboard.toggleKeyAnimation(target);
-      }
+      if (target) this.activateKey(target.dataset.code);
     });
   }
 }

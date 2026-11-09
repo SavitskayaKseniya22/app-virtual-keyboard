@@ -4,26 +4,40 @@ export default class Key {
     this.value = this.keyObject.activeValue;
     this.addition = this.keyObject.addition;
     this.shortcut = this.keyObject.shortcut;
-    this.classList = Key.makeClassList(this.value, key);
+    this.classList = Key.makeClassList(this.value);
     this.key = key;
   }
 
-  static makeClassList(value, key) {
+  static makeClassList(value) {
     let classList = "key";
     if (value.length > 1) {
       classList += ` key_special key_${value.toLowerCase()}`;
     } else {
-      classList += /^[0-9-=\\]$/.test(value) ? " key_digits" : " key_letters";
+      classList += /^[a-zа-яё]$/i.test(value) ? " key_letters" : " key_digits";
     }
 
-    classList += key === "Backquote" ? " key_digits" : "";
     return classList;
   }
 
+  static escapeHTML(value) {
+    return value.replace(
+      /[&<>"']/g,
+      (character) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[character],
+    );
+  }
+
   makeKeyHTML() {
-    return `<button type="button" data-code="${this.key}" class="${this.classList}" aria-label="${this.value}">
-      <span class="key-main-value">${this.shortcut || this.value}</span
-      >${this.addition ? `<span class="key-addition-value">${this.addition}</span>` : ""}
+    const pressed = ["Shift", "CapsLock"].includes(this.value) ? ' aria-pressed="false"' : "";
+    return `<button type="button" data-code="${this.key}" class="${this.classList}" aria-label="${Key.escapeHTML(this.value)}"${pressed}>
+      <span class="key-main-value">${Key.escapeHTML(this.shortcut || this.value)}</span
+      >${this.addition ? `<span class="key-addition-value">${Key.escapeHTML(this.addition)}</span>` : ""}
     </button>`;
   }
 }
