@@ -199,32 +199,31 @@ export default {
     "ArrowRight",
   ],
   makeShortcut() {
-    const array = new Array(63);
-    array.splice(14, 0, "Del");
-    array.splice(54, 0, "Ctrl");
-    array.splice(58, 0, "Ctrl");
-    array.splice(59, 0, "←");
-    array.splice(60, 0, "↑");
-    array.splice(61, 0, "↓");
-    array.splice(62, 0, "→");
+    const array = new Array(this.codes.length).fill("");
+    array[14] = "Del";
+    array[54] = "Ctrl";
+    array[58] = "Ctrl";
+    array[59] = "←";
+    array[60] = "↑";
+    array[61] = "↓";
+    array[62] = "→";
     return array;
   },
   makeValueToConcat() {
-    const array = new Array(63);
-    array.splice(13, 0, "");
-    array.splice(14, 0, "");
-    array.splice(28, 0, "\t");
-    array.splice(41, 0, "\n");
-    array.splice(54, 0, "");
-    array.splice(55, 0, "");
-    array.splice(56, 0, " ");
-    array.splice(57, 0, "");
-    array.splice(58, 0, "");
-    array.splice(59, 0, "");
-    array.splice(60, 0, "");
-    array.splice(61, 0, "");
-    array.splice(62, 0, "");
-
+    const array = new Array(this.codes.length);
+    array[13] = "";
+    array[14] = "";
+    array[28] = "\t";
+    array[41] = "\n";
+    array[54] = "";
+    array[55] = "";
+    array[56] = " ";
+    array[57] = "";
+    array[58] = "";
+    array[59] = "";
+    array[60] = "";
+    array[61] = "";
+    array[62] = "";
     return array;
   },
 

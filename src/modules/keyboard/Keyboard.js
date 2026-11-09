@@ -1,14 +1,15 @@
 import Key from "../key/Key.js";
-import alphabet from "../../utilities.js";
-import "./_keyboard.scss";
+import layout from "./layout.js";
 
 export default class Keyboard {
   constructor() {
-    this.lang = window.localStorage.getItem("lang") || "ENG";
-    this.keyCodes = alphabet.codes;
-    this.keyDescriptions = alphabet.merge(this.lang);
+    const savedLang = window.localStorage.getItem("lang");
+    this.lang = savedLang === "RU" ? "RU" : "ENG";
+    this.keyCodes = layout.codes;
+    this.keyDescriptions = layout.merge(this.lang);
     this.isShiftActive = false;
     this.isCapsActive = false;
+    this.physicalShiftDown = false;
   }
 
   makeKey(element, object) {
@@ -30,7 +31,7 @@ export default class Keyboard {
     return `
     <div class="keyboard-container">
     <div class="textarea-container">
-    <textarea id="text" name="text" class="keyboard-textarea" placeholder="Type something..." cols="60"></textarea>
+    <textarea id="text" name="text" class="keyboard-textarea" placeholder="Type something..." aria-label="Text input" cols="60"></textarea>
     </div>
     
       <ul class="keyboard">
@@ -153,39 +154,33 @@ export default class Keyboard {
   }
 
   checkValueToConcat(keyName, code) {
-    let valueToConcat = keyName;
     const { value, activeValue } = this.keyDescriptions[code];
-    if (value !== undefined) {
-      valueToConcat = value;
-    } else {
-      valueToConcat = activeValue;
-    }
-
-    return valueToConcat;
+    return value !== undefined ? value : activeValue;
   }
 
   static checkPositionToConcat(keyName, textArea) {
     let [start, end] = [textArea.selectionStart, textArea.selectionEnd];
+    const textLength = textArea.value.length;
     const upValue =
       textArea.selectionEnd - Number(textArea.getAttribute("cols")) < 0
         ? 0
         : textArea.selectionEnd - Number(textArea.getAttribute("cols"));
     const positions = {
-      Delete: [textArea.selectionStart, textArea.selectionEnd + 1],
-      Backspace: [textArea.selectionStart - 1, textArea.selectionEnd],
-      ArrowLeft: [textArea.selectionStart - 1, textArea.selectionEnd - 1],
+      Delete: [start, start === end ? Math.min(end + 1, textLength) : end],
+      Backspace: [start === end ? Math.max(start - 1, 0) : start, end],
+      ArrowLeft: [start === end ? Math.max(start - 1, 0) : start, start === end ? Math.max(end - 1, 0) : start],
       ArrowUp: [upValue, upValue],
       ArrowDown: [
-        Number(textArea.getAttribute("cols")) + textArea.selectionEnd,
-        Number(textArea.getAttribute("cols")) + textArea.selectionEnd,
+        Math.min(Number(textArea.getAttribute("cols")) + end, textLength),
+        Math.min(Number(textArea.getAttribute("cols")) + end, textLength),
       ],
-      ArrowRight: [textArea.selectionStart + 1, textArea.selectionEnd + 1],
+      ArrowRight: [start === end ? Math.min(start + 1, textLength) : end, start === end ? Math.min(end + 1, textLength) : end],
     };
 
     if (positions[keyName]) {
       if (
         (keyName === "Backspace" || keyName === "ArrowLeft" || keyName === "ArrowUp") &&
-        textArea.selectionEnd === 0
+        start === 0 && end === 0
       ) {
         return [start, end];
       }
@@ -206,21 +201,57 @@ export default class Keyboard {
 
   addListener() {
     document.addEventListener("keydown", (event) => {
-      event.preventDefault();
-      if (this.keyDescriptions[event.code]) {
-        const key = this.keyDescriptions[event.code].activeValue;
-        const target = document.querySelector(`[data-code="${event.code}"]`);
-        if (target) {
-          if (target.classList.contains("key_special")) {
-            this.applySpecialBehaviour(key, event.code);
-          } else {
-            this.changeTextarea(key, event.code);
-            if (this.isShiftActive) {
-              this.applySpecialBehaviour("Shift", event.code);
-            }
-          }
+      if (!this.keyDescriptions[event.code]) {
+        return;
+      }
 
-          Keyboard.toggleKeyAnimation(target);
+      // Keep Tab available for keyboard navigation; the on-screen Tab key still inserts a tab.
+      if (event.code === "Tab") {
+        return;
+      }
+
+      if (event.code.startsWith("Control") && event.shiftKey && this.isShiftActive) {
+        event.preventDefault();
+        this.applySpecialBehaviour("Control", event.code);
+        return;
+      }
+
+      // Keep browser and operating system shortcuts such as copy and paste available.
+      if (event.ctrlKey || event.metaKey) {
+        return;
+      }
+
+      const key = this.keyDescriptions[event.code].activeValue;
+      const target = document.querySelector(`[data-code="${event.code}"]`);
+      if (!target) {
+        return;
+      }
+
+      if (event.repeat && (key === "Shift" || key === "CapsLock")) {
+        return;
+      }
+
+      event.preventDefault();
+      if (key === "Shift") {
+        this.physicalShiftDown = true;
+      }
+      if (target.classList.contains("key_special")) {
+        this.applySpecialBehaviour(key, event.code);
+      } else {
+        this.changeTextarea(key, event.code);
+        if (this.isShiftActive) {
+          this.applySpecialBehaviour("Shift", event.code);
+        }
+      }
+
+      Keyboard.toggleKeyAnimation(target);
+    });
+
+    document.addEventListener("keyup", (event) => {
+      if (event.code.startsWith("Shift") && this.physicalShiftDown) {
+        this.physicalShiftDown = false;
+        if (this.isShiftActive) {
+          this.applySpecialBehaviour("Shift", event.code);
         }
       }
     });

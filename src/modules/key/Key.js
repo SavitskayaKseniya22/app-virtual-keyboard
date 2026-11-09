@@ -1,5 +1,3 @@
-import "./_key.scss";
-
 export default class Key {
   constructor(key, object) {
     this.keyObject = object[key];
@@ -23,9 +21,9 @@ export default class Key {
   }
 
   makeKeyHTML() {
-    return `<div ${`data-code="${this.key}"`} class="${this.classList}">
+    return `<button type="button" data-code="${this.key}" class="${this.classList}" aria-label="${this.value}">
       <span class="key-main-value">${this.shortcut || this.value}</span
       >${this.addition ? `<span class="key-addition-value">${this.addition}</span>` : ""}
-    </div>`;
+    </button>`;
   }
 }

@@ -1,4 +1,4 @@
-# [Virtual keyboard](https://poetic-tarsier-ff7606.netlify.app/)
+# [Virtual keyboard](https://app-virtual-keyboard.netlify.app)
 
 Simple virtual keyboard
 
@@ -8,7 +8,7 @@ Simple virtual keyboard
 - Sass
 - Eslint
 - Prettier
-- Webpack
+- Vite
 - Normalize.css
 
 ## How to use
@@ -36,6 +36,8 @@ npm install
 ```bash
 npm start
 ```
+
+For a production build, run `npm run build`. To serve the build locally, run `npm run preview`.
 
 ### Screenshots
 
